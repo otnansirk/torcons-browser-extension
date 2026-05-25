@@ -394,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
     html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
     html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
     // Headings
-    html = html.replace(/^### (.*$)/gim, '<h3 style="margin: 12px 0 6px 0; font-size: 15px;">$1</h3>');
+    html = html.replace(/^#{3,} (.*$)/gim, '<h3 style="margin: 12px 0 6px 0; font-size: 15px;">$1</h3>');
     html = html.replace(/^## (.*$)/gim, '<h2 style="margin: 14px 0 8px 0; font-size: 16px;">$1</h2>');
     html = html.replace(/^# (.*$)/gim, '<h1 style="margin: 16px 0 10px 0; font-size: 18px;">$1</h1>');
     // Links
