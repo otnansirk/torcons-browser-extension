@@ -3,7 +3,18 @@
   "name": "Torcons",
   "version": "1.0",
   "description": "AI Assistant to summarize pages and answer questions.",
-  "action": {},
+  "icons": {
+    "16": "assets/favicon-96x96.png",
+    "48": "assets/web-app-manifest-192x192.png",
+    "128": "assets/web-app-manifest-512x512.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "assets/favicon-96x96.png",
+      "48": "assets/web-app-manifest-192x192.png",
+      "128": "assets/web-app-manifest-512x512.png"
+    }
+  },
   "background": {
     "service_worker": "background.js"
   },
@@ -24,7 +35,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["popup.html", "popup.css", "popup.js"],
+      "resources": ["popup.html", "popup.css", "popup.js", "assets/*"],
       "matches": ["<all_urls>"]
     }
   ]
