@@ -159,6 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     chatHistory.appendChild(msgDiv);
     chatHistory.scrollTop = chatHistory.scrollHeight;
+    return msgDiv;
   }
 
   function appendTypingIndicator() {
@@ -227,7 +228,8 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         body: JSON.stringify({
           model: modelSelect.value || 'default', // standard placeholder for compatible APIs
-          messages: apiMessages
+          messages: apiMessages,
+          stream: true
         })
       });
 
@@ -240,17 +242,48 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error(`API Error: ${response.status}`);
       }
 
-      const data = await response.json();
       removeTypingIndicator();
 
-      if (data.choices && data.choices.length > 0) {
-        const aiResponse = data.choices[0].message.content;
-        appendMessage('ai', aiResponse);
-        chatMessages.push({ role: "assistant", content: aiResponse });
-        saveHistory();
-      } else {
-        throw new Error("Invalid response format from API");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      
+      let fullContent = '';
+      const msgDiv = appendMessage('ai', '');
+      const bubble = msgDiv.querySelector('.bubble');
+      let buffer = '';
+      let done = false;
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // Keep partial line
+          
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
+              try {
+                const data = JSON.parse(trimmed.slice(6));
+                if (data.choices && data.choices.length > 0) {
+                  const delta = data.choices[0].delta;
+                  if (delta && delta.content) {
+                    fullContent += delta.content;
+                    bubble.innerHTML = renderMarkdown(fullContent);
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                  }
+                }
+              } catch (e) {
+                // Ignore incomplete JSON chunks
+              }
+            }
+          }
+        }
       }
+
+      chatMessages.push({ role: "assistant", content: fullContent });
+      saveHistory();
 
     } catch (error) {
       removeTypingIndicator();
