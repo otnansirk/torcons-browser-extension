@@ -7,7 +7,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatInput = document.getElementById('chat-input');
   const sendBtn = document.getElementById('send-btn');
   const chatHistory = document.getElementById('chat-history');
-  const summarizeBtn = document.getElementById('summarize-btn');
   const modelSelect = document.getElementById('model-select');
 
   let authToken = null;
@@ -46,10 +45,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return new Promise((resolve) => {
       chrome.storage.local.get([currentPageKey], async (result) => {
         chatHistory.innerHTML = ''; // Clear hardcoded welcome message
-        
+
         if (result[currentPageKey] && result[currentPageKey].length > 0) {
           chatMessages = result[currentPageKey];
-          
+
           // Render existing messages
           chatMessages.forEach(msg => {
             if (msg.role !== 'system') {
@@ -62,6 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
           chatMessages = [systemMsg];
           // Render welcome message
           appendMessage('ai', "Hello! I'm Torcons. How can I help you today? You can also ask me to summarize the page you're currently on.");
+
+          addInlineSummarizeButton();
           saveHistory();
         }
         resolve();
@@ -133,6 +134,10 @@ document.addEventListener('DOMContentLoaded', () => {
     chatInput.value = '';
     chatInput.style.height = 'auto';
     sendBtn.disabled = true;
+
+    // Remove inline summarize button if it exists
+    const inlineContainer = document.getElementById('inline-summarize-container');
+    if (inlineContainer) inlineContainer.remove();
 
     // Add User Message to UI
     appendMessage('user', text);
@@ -211,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       let apiMessages = [...chatMessages];
       const pageContext = await getCurrentPageContext();
-      
+
       if (pageContext && apiMessages.length > 0 && apiMessages[0].role === 'system') {
         apiMessages[0] = {
           ...apiMessages[0],
@@ -246,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
-      
+
       let fullContent = '';
       const msgDiv = appendMessage('ai', '');
       const bubble = msgDiv.querySelector('.bubble');
@@ -260,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop(); // Keep partial line
-          
+
           for (const line of lines) {
             const trimmed = line.trim();
             if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
@@ -297,43 +302,53 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // 7. Summarize Page Logic
-  summarizeBtn.addEventListener('click', async () => {
-    try {
-      summarizeBtn.disabled = true;
-      summarizeBtn.innerHTML = '<div class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></div>';
+  async function triggerSummarize() {
+    const inlineContainer = document.getElementById('inline-summarize-container');
+    if (inlineContainer) inlineContainer.remove();
 
-      // Get active tab
+    try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab) throw new Error("No active tab found");
 
-      // Cannot inject scripts into chrome:// URLs
       if (tab.url.startsWith('chrome://')) {
         throw new Error("Cannot summarize internal Chrome pages.");
       }
 
       const prompt = `Please summarize the current page concisely. Highlight the main points.`;
 
-      // Add to UI
       appendMessage('user', `Summarize this page: ${tab.title}`);
-      
-      // Prepare messages
+
       chatMessages.push({ role: "user", content: prompt });
       saveHistory();
-      
-      // Fetch summary
+
       await fetchAIResponse();
 
     } catch (error) {
       console.error(error);
       appendMessage('ai', `Could not summarize page: ${error.message}`);
-    } finally {
-      // Restore button
-      summarizeBtn.disabled = false;
-      summarizeBtn.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-      `;
     }
-  });
+  }
+
+  function addInlineSummarizeButton() {
+    const btnDiv = document.createElement('div');
+    btnDiv.id = 'inline-summarize-container';
+    btnDiv.style.textAlign = 'center';
+    btnDiv.style.marginTop = '20px';
+    btnDiv.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
+        <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+        <span style="margin: 0 15px; font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 1.5px;">Quick Tools</span>
+        <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+      </div>
+      <button id="inline-summarize-btn" class="btn secondary-btn" style="padding: 10px 20px; border-radius: 20px; font-size: 13px; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); cursor: pointer; color: rgba(255,255,255,0.8);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        Summarize Current Page
+      </button>
+    `;
+    chatHistory.appendChild(btnDiv);
+
+    document.getElementById('inline-summarize-btn').addEventListener('click', triggerSummarize);
+  }
 
   // 8. Fetch Models
   async function fetchModels() {
@@ -366,9 +381,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderMarkdown(str) {
     if (!str) return '';
-    
+
     let html = str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    
+
     // Code blocks
     html = html.replace(/```(?:[a-z0-9]*\n)?([\s\S]*?)```/g, '<pre style="background:rgba(0,0,0,0.3);padding:10px;border-radius:6px;overflow-x:auto;margin:8px 0;font-family:monospace;font-size:12px;"><code>$1</code></pre>');
     // Inline code
@@ -387,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Lists
     html = html.replace(/^\s*[\-\*] (.*$)/gim, '<li style="margin-left: 20px;">$1</li>');
     html = html.replace(/^\s*\d+\. (.*$)/gim, '<li style="margin-left: 20px;">$1</li>');
-    
+
     // Process newlines outside of pre blocks
     const parts = html.split(/(<pre[\s\S]*?<\/pre>)/);
     for (let i = 0; i < parts.length; i++) {
