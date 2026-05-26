@@ -16,18 +16,18 @@
     }
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background/background.js"
   },
-  "options_page": "options.html",
+  "options_page": "src/ui/options/options.html",
   "content_scripts": [
     {
       "matches": ["*://chat.torcons.ai/*"],
-      "js": ["content.js"],
+      "js": ["src/content/content.js"],
       "run_at": "document_idle"
     },
     {
       "matches": ["<all_urls>"],
-      "js": ["floating_button.js"],
+      "js": ["src/content/floating_button.js"],
       "run_at": "document_idle"
     }
   ],
@@ -42,7 +42,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["popup.html", "popup.css", "popup.js", "assets/*"],
+      "resources": ["src/ui/sidebar/sidebar.html", "src/ui/sidebar/sidebar.css", "src/ui/sidebar/sidebar.js", "assets/*"],
       "matches": ["<all_urls>"]
     }
   ]

@@ -9,7 +9,7 @@ chrome.action.onClicked.addListener((tab) => {
   
   chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    files: ['sidebar_injector.js']
+    files: ['src/content/sidebar_injector.js']
   }).catch(err => console.error("Torcons Inject Error:", err));
 });
 
@@ -23,7 +23,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.action === 'toggle_sidebar') {
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },
-      files: ['sidebar_injector.js']
+      files: ['src/content/sidebar_injector.js']
     }).then(() => {
       sendResponse({ success: true });
     }).catch(err => {

@@ -56,7 +56,7 @@
 
   // 4. Create Iframe
   const iframe = document.createElement('iframe');
-  iframe.src = chrome.runtime.getURL('popup.html');
+  iframe.src = chrome.runtime.getURL('src/ui/sidebar/sidebar.html');
   Object.assign(iframe.style, {
     flexGrow: '1',
     border: 'none',
