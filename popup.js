@@ -8,6 +8,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const sendBtn = document.getElementById('send-btn');
   const chatHistory = document.getElementById('chat-history');
   const modelSelect = document.getElementById('model-select');
+  const settingsBtn = document.getElementById('settings-btn');
+
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', () => {
+      chrome.runtime.openOptionsPage();
+    });
+  }
 
   let authToken = null;
   let modelsFetched = false;
@@ -45,8 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return new Promise((resolve) => {
       chrome.storage.local.get([currentPageKey], async (result) => {
         chatHistory.innerHTML = ''; // Clear hardcoded welcome message
-
-        if (result[currentPageKey] && result[currentPageKey].length > 0) {
+        if (result[currentPageKey] && result[currentPageKey].length > 1) {
           chatMessages = result[currentPageKey];
 
           // Render existing messages
