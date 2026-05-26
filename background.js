@@ -20,5 +20,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log("Torcons: Auth token synced successfully.");
     });
     sendResponse({ success: true });
+  } else if (message.action === 'toggle_sidebar') {
+    chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id },
+      files: ['sidebar_injector.js']
+    }).catch(err => console.error("Torcons Inject Error:", err));
   }
 });

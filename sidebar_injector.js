@@ -8,6 +8,8 @@
   if (existingContainer) {
     existingContainer.remove();
     document.documentElement.style.width = existingContainer.dataset.originalWidth || '';
+    document.documentElement.style.removeProperty('--torcons-sidebar-width');
+    window.dispatchEvent(new CustomEvent('torcons-sidebar-updated', { detail: { resizing: false } }));
     return;
   }
 
@@ -18,6 +20,12 @@
   
   const initialWidth = 400;
   document.documentElement.style.width = `calc(100% - ${initialWidth}px)`;
+  document.documentElement.style.setProperty('--torcons-sidebar-width', initialWidth + 'px');
+  
+  // Timeout ensures CSS property is applied before dispatching
+  setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('torcons-sidebar-updated', { detail: { resizing: false } }));
+  }, 0);
   
   // Base styling for the container
   Object.assign(container.style, {
@@ -87,6 +95,8 @@
 
     container.style.width = newWidth + 'px';
     document.documentElement.style.width = `calc(100% - ${newWidth}px)`;
+    document.documentElement.style.setProperty('--torcons-sidebar-width', newWidth + 'px');
+    window.dispatchEvent(new CustomEvent('torcons-sidebar-updated', { detail: { resizing: true } }));
   });
 
   window.addEventListener('mouseup', () => {
@@ -94,6 +104,7 @@
       isResizing = false;
       document.body.style.userSelect = '';
       iframe.style.pointerEvents = 'auto'; // Re-enable iframe interaction
+      window.dispatchEvent(new CustomEvent('torcons-sidebar-updated', { detail: { resizing: false } }));
     }
   });
 
