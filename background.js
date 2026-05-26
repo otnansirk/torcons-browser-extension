@@ -24,6 +24,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },
       files: ['sidebar_injector.js']
-    }).catch(err => console.error("Torcons Inject Error:", err));
+    }).then(() => {
+      sendResponse({ success: true });
+    }).catch(err => {
+      console.error("Torcons Inject Error:", err);
+      sendResponse({ success: false, error: err.message });
+    });
+    return true; // Keep message channel open for async response
   }
 });
