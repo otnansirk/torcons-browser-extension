@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
 </head>
+
 <body>
   <!-- Login View -->
   <div id="login-view" class="view">
@@ -19,8 +21,7 @@
       </div>
       <p class="subtitle">Your intelligent browsing companion.</p>
       <button id="signin-btn" class="btn primary-btn">
-        <span>Sign In to Chat</span>
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+        <span>Connect to Torcons</span>
       </button>
     </div>
   </div>
@@ -37,15 +38,19 @@
           <select id="model-select" class="model-select" disabled>
             <option value="default">Loading...</option>
           </select>
-          <svg class="select-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          <svg class="select-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
         </div>
       </div>
     </header>
-    
+
     <main id="chat-history">
       <div class="message ai-message welcome-msg">
         <div class="avatar">T</div>
-        <div class="bubble">Hello! I'm Torcons. How can I help you today? You can also ask me to summarize the page you're currently on.</div>
+        <div class="bubble">Hello! I'm Torcons. How can I help you today? You can also ask me to summarize the page
+          you're currently on.</div>
       </div>
     </main>
 
@@ -53,7 +58,11 @@
       <div class="input-wrapper">
         <textarea id="chat-input" placeholder="Ask Torcons..." rows="1"></textarea>
         <button id="send-btn" class="btn icon-btn" disabled>
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
         </button>
       </div>
     </footer>
@@ -66,4 +75,5 @@
 
   <script src="popup.js"></script>
 </body>
+
 </html>
