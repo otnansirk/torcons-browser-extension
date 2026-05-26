@@ -161,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (role === 'ai') {
       msgDiv.innerHTML = `
-        <div class="avatar"><img src="assets/favicon-96x96.png" alt="Torcons"></div>
+        <div class="avatar"><img src="/assets/favicon-96x96.png" alt="Torcons"></div>
         <div class="bubble" style="line-height: 1.6;">${renderMarkdown(content)}</div>
       `;
     } else {
@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
     msgDiv.className = `message ai-message typing-indicator-wrapper`;
     msgDiv.id = 'typing-indicator';
     msgDiv.innerHTML = `
-      <div class="avatar"><img src="assets/favicon-96x96.png" alt="Torcons"></div>
+      <div class="avatar"><img src="/assets/favicon-96x96.png" alt="Torcons"></div>
       <div class="typing-indicator">
         <span></span><span></span><span></span>
       </div>
