@@ -37,7 +37,8 @@
     "scripting"
   ],
   "host_permissions": [
-    "*://chat.torcons.ai/*"
+    "*://chat.torcons.ai/*",
+    "<all_urls>"
   ],
   "web_accessible_resources": [
     {
