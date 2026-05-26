@@ -179,4 +179,43 @@
       snapToEdges();
     }
   });
+
+  const dynamicStyle = document.createElement('style');
+  shadow.appendChild(dynamicStyle);
+
+  function applySettings(settings) {
+    const show = settings.showFloatingButton !== false; // default true
+    const styleType = settings.floatingButtonStyle || 'gradient';
+    const opacity = settings.floatingButtonOpacity !== undefined ? settings.floatingButtonOpacity : 100;
+    
+    container.style.display = show ? 'block' : 'none';
+    
+    let background = 'linear-gradient(135deg, rgba(37, 99, 235, 0.7), rgba(147, 51, 234, 0.7))';
+    let backdrop = 'blur(12px)';
+    
+    if (styleType === 'glass') {
+      background = 'rgba(255, 255, 255, 0.1)';
+      backdrop = 'blur(24px)';
+    } else if (styleType === 'solid') {
+      background = 'rgba(30, 41, 59, 1)';
+      backdrop = 'none';
+    }
+    
+    dynamicStyle.textContent = `
+      .fab {
+        background: ${background} !important;
+        backdrop-filter: ${backdrop} !important;
+        -webkit-backdrop-filter: ${backdrop} !important;
+        opacity: ${opacity / 100} !important;
+      }
+    `;
+  }
+
+  chrome.storage.local.get(['showFloatingButton', 'floatingButtonStyle', 'floatingButtonOpacity'], applySettings);
+
+  chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local') {
+      chrome.storage.local.get(['showFloatingButton', 'floatingButtonStyle', 'floatingButtonOpacity'], applySettings);
+    }
+  });
 })();
