@@ -18,8 +18,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "TOKEN_SYNC" && message.token) {
     chrome.storage.local.set({ token: message.token }, () => {
       console.log("Torcons: Auth token synced successfully.");
+      
+      if (message.closeTab && sender.tab && sender.tab.id) {
+        chrome.tabs.remove(sender.tab.id).catch(e => console.warn(e));
+        if (message.returnTabId) {
+          chrome.tabs.update(message.returnTabId, { active: true }).catch(e => console.warn("Failed to focus return tab:", e));
+        }
+      }
+      
+      sendResponse({ success: true });
     });
-    sendResponse({ success: true });
+    return true; // Keep message channel open for async response
   } else if (message.action === 'toggle_sidebar') {
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },

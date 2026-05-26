@@ -110,8 +110,10 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAuth();
 
   // 2. Sign In Button Action
-  signinBtn.addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://chat.torcons.ai' });
+  signinBtn.addEventListener('click', async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const returnTabId = tab ? tab.id : '';
+    chrome.tabs.create({ url: `https://chat.torcons.ai/?source=extension&returnTabId=${returnTabId}` });
   });
 
   // 3. UI Interactions
