@@ -92,6 +92,36 @@ body {
   cursor: pointer;
 }
 
+.flex-col {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.flex-col .setting-label {
+  margin-bottom: 8px;
+}
+
+.system-prompt-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #fff;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+}
+
+.system-prompt-textarea:focus {
+  outline: none;
+  border-color: rgba(147, 51, 234, 0.8);
+  background: rgba(255, 255, 255, 0.1);
+}
+
 /* Custom Toggle Switch CSS */
 .switch {
   position: relative;

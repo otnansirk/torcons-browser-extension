@@ -46,6 +46,19 @@
         <label for="fab-opacity" class="setting-label">Button Opacity: <span id="opacity-val">100%</span></label>
         <input type="range" id="fab-opacity" min="10" max="100" value="100" class="slider-range">
       </div>
+
+      <div class="setting-group flex-col">
+        <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 8px;">
+          <label for="system-prompt" class="setting-label" style="margin-bottom: 0;">Personalized System Prompt</label>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label class="switch">
+              <input type="checkbox" id="use-custom-prompt">
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+        <textarea id="system-prompt" class="system-prompt-textarea" placeholder="Enter custom system prompt... Leave blank to use default." rows="5"></textarea>
+      </div>
     </main>
   </div>
   <script src="options.js"></script>

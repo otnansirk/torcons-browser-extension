@@ -39,6 +39,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadSystemConfig() {
     try {
+      const result = await new Promise(resolve => chrome.storage.local.get(['systemPrompt', 'useCustomPrompt'], resolve));
+      if (result.useCustomPrompt && result.systemPrompt && result.systemPrompt.trim() !== '') {
+        return { role: "system", content: result.systemPrompt };
+      }
+      
       const response = await fetch(chrome.runtime.getURL('config/system.json'));
       const config = await response.json();
       return { role: "system", content: config.system_prompt };
@@ -54,6 +59,12 @@ document.addEventListener('DOMContentLoaded', () => {
         chatHistory.innerHTML = ''; // Clear hardcoded welcome message
         if (result[currentPageKey] && result[currentPageKey].length > 1) {
           chatMessages = result[currentPageKey];
+
+          // Ensure the first message is the latest system prompt
+          const systemMsg = await loadSystemConfig();
+          if (chatMessages.length > 0 && chatMessages[0].role === 'system') {
+            chatMessages[0] = systemMsg;
+          }
 
           // Render existing messages
           chatMessages.forEach(msg => {
@@ -101,9 +112,18 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Listen for storage changes in case the background script syncs the token while popup is open
-  chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === 'local' && changes.token) {
-      checkAuth();
+  chrome.storage.onChanged.addListener(async (changes, namespace) => {
+    if (namespace === 'local') {
+      if (changes.token) {
+        checkAuth();
+      }
+      if (changes.systemPrompt || changes.useCustomPrompt) {
+        const systemMsg = await loadSystemConfig();
+        if (chatMessages.length > 0 && chatMessages[0].role === 'system') {
+          chatMessages[0] = systemMsg;
+          saveHistory();
+        }
+      }
     }
   });
 

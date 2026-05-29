@@ -4,6 +4,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const fabOpacityEl = document.getElementById('fab-opacity');
   const opacityValEl = document.getElementById('opacity-val');
   const previewFab = document.getElementById('preview-fab');
+  const systemPromptEl = document.getElementById('system-prompt');
+  const useCustomPromptEl = document.getElementById('use-custom-prompt');
+
+  const updatePromptUI = () => {
+    systemPromptEl.disabled = !useCustomPromptEl.checked;
+    systemPromptEl.style.opacity = useCustomPromptEl.checked ? '1' : '0.5';
+    if (useCustomPromptEl.checked) {
+      systemPromptEl.focus();
+    }
+  };
 
   const updatePreview = () => {
     const show = showFabEl.checked;
@@ -33,13 +43,18 @@ document.addEventListener('DOMContentLoaded', () => {
   chrome.storage.local.get({
     showFloatingButton: true,
     floatingButtonStyle: 'gradient',
-    floatingButtonOpacity: 100
+    floatingButtonOpacity: 100,
+    systemPrompt: '',
+    useCustomPrompt: false
   }, (items) => {
     showFabEl.checked = items.showFloatingButton;
     fabStyleEl.value = items.floatingButtonStyle;
     fabOpacityEl.value = items.floatingButtonOpacity;
     opacityValEl.textContent = items.floatingButtonOpacity + '%';
+    systemPromptEl.value = items.systemPrompt;
+    useCustomPromptEl.checked = items.useCustomPrompt;
     updatePreview();
+    updatePromptUI();
   });
 
   // Save settings when changed
@@ -47,7 +62,9 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.set({
       showFloatingButton: showFabEl.checked,
       floatingButtonStyle: fabStyleEl.value,
-      floatingButtonOpacity: parseInt(fabOpacityEl.value, 10)
+      floatingButtonOpacity: parseInt(fabOpacityEl.value, 10),
+      systemPrompt: systemPromptEl.value,
+      useCustomPrompt: useCustomPromptEl.checked
     });
     updatePreview();
   };
@@ -59,4 +76,10 @@ document.addEventListener('DOMContentLoaded', () => {
     opacityValEl.textContent = e.target.value + '%';
   });
   fabOpacityEl.addEventListener('change', saveOptions);
+  systemPromptEl.addEventListener('change', saveOptions);
+  
+  useCustomPromptEl.addEventListener('change', () => {
+    updatePromptUI();
+    saveOptions();
+  });
 });
