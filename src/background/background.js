@@ -1,5 +1,35 @@
 // background.js
 
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: "ask-torcons",
+    title: "Ask Torcons about this",
+    contexts: ["selection"]
+  });
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "ask-torcons" && info.selectionText) {
+    if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('https://chrome.google.com/webstore'))) {
+      console.warn("Torcons cannot be injected into restricted pages.");
+      return;
+    }
+
+    const pendingKey = `pendingContextAsk_${tab.id}`;
+    chrome.storage.session.set({ [pendingKey]: info.selectionText }, () => {
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => { window.torconsActionType = 'open'; }
+      }).then(() => {
+        return chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['src/content/sidebar_injector.js']
+        });
+      }).catch(err => console.error("Torcons Inject Error:", err));
+    });
+  }
+});
+
 // Handle extension icon click to toggle sidebar
 chrome.action.onClicked.addListener((tab) => {
   if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('https://chrome.google.com/webstore'))) {
@@ -29,6 +59,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true });
     });
     return true; // Keep message channel open for async response
+  } else if (message.type === "GET_PENDING_CONTEXT_ASK") {
+    const tabId = sender.tab && sender.tab.id;
+    if (!tabId) {
+      sendResponse({ text: null });
+      return false;
+    }
+
+    const pendingKey = `pendingContextAsk_${tabId}`;
+    chrome.storage.session.get([pendingKey], (result) => {
+      const text = result[pendingKey] || null;
+      if (text) {
+        chrome.storage.session.remove(pendingKey);
+      }
+      sendResponse({ text });
+    });
+    return true;
   } else if (message.action === 'toggle_sidebar') {
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },

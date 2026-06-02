@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatHistory = document.getElementById('chat-history');
   const modelSelect = document.getElementById('model-select');
   const settingsBtn = document.getElementById('settings-btn');
+  const DEFAULT_MODEL = 'Torcons';
+  const MODEL_STORAGE_KEY = 'selectedModel';
 
   if (settingsBtn) {
     settingsBtn.addEventListener('click', () => {
@@ -35,6 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentPageKey) {
       chrome.storage.local.set({ [currentPageKey]: chatMessages });
     }
+  };
+
+  const getStoredModel = () => {
+    return new Promise(resolve => {
+      chrome.storage.local.get([MODEL_STORAGE_KEY], result => resolve(result[MODEL_STORAGE_KEY]));
+    });
   };
 
   async function loadSystemConfig() {
@@ -104,6 +112,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (chatMessages.length === 0) {
           await loadHistory();
         }
+
+        requestPendingContextAsk();
       } else {
         loginView.classList.remove('hidden');
         chatView.classList.add('hidden');
@@ -129,6 +139,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   checkAuth();
 
+  window.addEventListener('message', (event) => {
+    if (event.source !== window.parent) return;
+    if (!event.data || event.data.type !== 'TORCONS_CHECK_PENDING_CONTEXT_ASK') return;
+
+    if (authToken) {
+      requestPendingContextAsk();
+    }
+  });
+
   // 2. Sign In Button Action
   signinBtn.addEventListener('click', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -152,6 +171,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   sendBtn.addEventListener('click', handleSend);
+
+  modelSelect.addEventListener('change', () => {
+    chrome.storage.local.set({ [MODEL_STORAGE_KEY]: modelSelect.value || DEFAULT_MODEL });
+  });
 
   // 4. Send Message Logic
   async function handleSend() {
@@ -244,6 +267,10 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       let apiMessages = [...chatMessages];
       const pageContext = await getCurrentPageContext();
+      const storedModel = await getStoredModel();
+      const selectedModel = modelSelect.disabled
+        ? (storedModel || DEFAULT_MODEL)
+        : (modelSelect.value || storedModel || DEFAULT_MODEL);
 
       if (pageContext && apiMessages.length > 0 && apiMessages[0].role === 'system') {
         apiMessages[0] = {
@@ -260,7 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
           'Authorization': `Bearer ${authToken}`
         },
         body: JSON.stringify({
-          model: modelSelect.value || 'default', // standard placeholder for compatible APIs
+          model: selectedModel,
           messages: apiMessages,
           stream: true
         })
@@ -329,6 +356,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Context Menu Logic
+  function requestPendingContextAsk() {
+    chrome.runtime.sendMessage({ type: 'GET_PENDING_CONTEXT_ASK' }, (response) => {
+      if (chrome.runtime.lastError || !response || !response.text) return;
+      processPendingContextAsk(response.text);
+    });
+  }
+
+  async function processPendingContextAsk(text) {
+    if (!text) return;
+
+    const prompt = `Explain this snippet:\n\n"${text}"`;
+
+    // Remove inline summarize button if it exists
+    const inlineContainer = document.getElementById('inline-summarize-container');
+    if (inlineContainer) inlineContainer.remove();
+
+    appendMessage('user', prompt);
+    chatMessages.push({ role: "user", content: prompt });
+    saveHistory();
+
+    await fetchAIResponse();
+  }
+
   // 7. Summarize Page Logic
   async function triggerSummarize() {
     const inlineContainer = document.getElementById('inline-summarize-container');
@@ -381,6 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 8. Fetch Models
   async function fetchModels() {
     try {
+      const storedModel = await getStoredModel();
       const response = await fetch('https://chat.torcons.ai/openai/models', {
         headers: {
           'Authorization': `Bearer ${authToken}`
@@ -391,19 +443,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (data.data && data.data.length > 0) {
         modelSelect.innerHTML = '';
+        const modelIds = data.data.map(model => model.id);
         data.data.forEach(model => {
           const option = document.createElement('option');
           option.value = model.id;
           option.textContent = model.id;
           modelSelect.appendChild(option);
         });
+        if (storedModel && modelIds.includes(storedModel)) {
+          modelSelect.value = storedModel;
+        } else if (modelIds.includes(DEFAULT_MODEL)) {
+          modelSelect.value = DEFAULT_MODEL;
+        }
+        chrome.storage.local.set({ [MODEL_STORAGE_KEY]: modelSelect.value || DEFAULT_MODEL });
         modelSelect.disabled = false;
       } else {
-        modelSelect.innerHTML = '<option value="default">Default Model</option>';
+        modelSelect.innerHTML = `<option value="${DEFAULT_MODEL}">${DEFAULT_MODEL}</option>`;
+        chrome.storage.local.set({ [MODEL_STORAGE_KEY]: DEFAULT_MODEL });
       }
     } catch (error) {
       console.error(error);
-      modelSelect.innerHTML = '<option value="default">Default Model</option>';
+      modelSelect.innerHTML = `<option value="${DEFAULT_MODEL}">${DEFAULT_MODEL}</option>`;
+      chrome.storage.local.set({ [MODEL_STORAGE_KEY]: DEFAULT_MODEL });
     }
   }
 

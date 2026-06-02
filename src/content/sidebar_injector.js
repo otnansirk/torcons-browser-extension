@@ -3,9 +3,26 @@
 (function() {
   const CONTAINER_ID = 'torcons-sidebar-container';
 
+  // Handle action type
+  const actionType = window.torconsActionType || 'toggle';
+  window.torconsActionType = null; // reset
+
+  const requestPendingContextAsk = (iframe) => {
+    if (!iframe || !iframe.contentWindow) return;
+
+    iframe.contentWindow.postMessage({
+      type: 'TORCONS_CHECK_PENDING_CONTEXT_ASK'
+    }, chrome.runtime.getURL('').slice(0, -1));
+  };
+
   // 1. Toggle Logic
   const existingContainer = document.getElementById(CONTAINER_ID);
   if (existingContainer) {
+    if (actionType === 'open') {
+      requestPendingContextAsk(existingContainer.querySelector('iframe'));
+      return; // already open, do nothing
+    }
+
     existingContainer.remove();
     document.documentElement.style.width = existingContainer.dataset.originalWidth || '';
     document.documentElement.style.removeProperty('--torcons-sidebar-width');
