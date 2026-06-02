@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="bubble" style="line-height: 1.6;">${renderMarkdown(content)}</div>
       `;
     } else {
-      msgDiv.innerHTML = `<div class="bubble">${escapeHTML(content)}</div>`;
+      msgDiv.innerHTML = `<div class="bubble">${renderUserContent(content)}</div>`;
     }
 
     chatHistory.appendChild(msgDiv);
@@ -299,7 +299,17 @@ document.addEventListener('DOMContentLoaded', () => {
           chrome.storage.local.remove(['token']);
           throw new Error("Authentication failed. Please sign in again.");
         }
-        throw new Error(`API Error: ${response.status}`);
+
+        const errorBody = await response.text().catch(() => '');
+        let errorMessage = errorBody;
+        try {
+          const errorData = JSON.parse(errorBody);
+          errorMessage = errorData.error && errorData.error.message ? errorData.error.message : errorBody;
+        } catch (e) {
+          // Keep the raw response body as the fallback message.
+        }
+
+        throw new Error(`API Error: ${response.status}${errorMessage ? ` - ${errorMessage}` : ''}`);
       }
 
       removeTypingIndicator();
@@ -359,22 +369,33 @@ document.addEventListener('DOMContentLoaded', () => {
   // Context Menu Logic
   function requestPendingContextAsk() {
     chrome.runtime.sendMessage({ type: 'GET_PENDING_CONTEXT_ASK' }, (response) => {
-      if (chrome.runtime.lastError || !response || !response.text) return;
-      processPendingContextAsk(response.text);
+      if (chrome.runtime.lastError || !response || !response.ask) return;
+      processPendingContextAsk(response.ask);
     });
   }
 
-  async function processPendingContextAsk(text) {
-    if (!text) return;
+  async function processPendingContextAsk(ask) {
+    if (!ask) return;
 
-    const prompt = `Explain this snippet:\n\n"${text}"`;
+    const normalizedAsk = typeof ask === 'string' ? { type: 'text', text: ask } : ask;
+    const prompt = normalizedAsk.type === 'image'
+      ? 'What can you tell me about this image?'
+      : `Explain this snippet:\n\n"${normalizedAsk.text}"`;
+    const messageContent = normalizedAsk.type === 'image'
+      ? [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: normalizedAsk.imageUrl } }
+        ]
+      : prompt;
+
+    if (normalizedAsk.type === 'image' && !normalizedAsk.imageUrl) return;
 
     // Remove inline summarize button if it exists
     const inlineContainer = document.getElementById('inline-summarize-container');
     if (inlineContainer) inlineContainer.remove();
 
-    appendMessage('user', prompt);
-    chatMessages.push({ role: "user", content: prompt });
+    appendMessage('user', messageContent);
+    chatMessages.push({ role: "user", content: messageContent });
     saveHistory();
 
     await fetchAIResponse();
@@ -502,10 +523,35 @@ document.addEventListener('DOMContentLoaded', () => {
     return parts.join('');
   }
 
+  function renderUserContent(content) {
+    if (Array.isArray(content)) {
+      return content.map(part => {
+        if (part.type === 'text') {
+          return escapeHTML(part.text || '');
+        }
+
+        if (part.type === 'image_url' && part.image_url && part.image_url.url) {
+          const imageUrl = escapeAttribute(part.image_url.url);
+          return `<img class="message-image" src="${imageUrl}" alt="Selected image">`;
+        }
+
+        return '';
+      }).join('');
+    }
+
+    return escapeHTML(content || '');
+  }
+
   // Utility to prevent XSS in simple strings
   function escapeHTML(str) {
     const p = document.createElement('p');
     p.textContent = str;
     return p.innerHTML.replace(/\n/g, '<br>');
+  }
+
+  function escapeAttribute(str) {
+    const p = document.createElement('p');
+    p.textContent = str;
+    return p.innerHTML.replace(/"/g, '&quot;');
   }
 });

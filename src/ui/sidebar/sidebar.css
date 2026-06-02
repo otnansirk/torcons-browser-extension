@@ -269,6 +269,17 @@ body {
   border-color: var(--accent-color);
 }
 
+.message-image {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 8px;
+  margin-top: 8px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
 .select-icon {
   position: absolute;
   right: 8px;
