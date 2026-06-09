@@ -14,19 +14,28 @@ const extractAndSyncToken = () => {
       const returnTabIdStr = urlParams.get('returnTabId');
       const returnTabId = returnTabIdStr ? parseInt(returnTabIdStr, 10) : null;
       
-      chrome.runtime.sendMessage({ 
-        type: "TOKEN_SYNC", 
-        token: token, 
-        closeTab: isFromExtension,
-        returnTabId: returnTabId
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          // Extension might not be ready or reloaded
-          console.warn("Torcons extension not ready to receive token.");
+      try {
+        chrome.runtime.sendMessage({ 
+          type: "TOKEN_SYNC", 
+          token: token, 
+          closeTab: isFromExtension,
+          returnTabId: returnTabId
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            // Extension might not be ready or reloaded
+            console.warn("Torcons extension not ready to receive token.");
+          } else {
+            tokenSynced = true;
+          }
+        });
+      } catch (err) {
+        if (err.message.includes('Extension context invalidated')) {
+          console.warn('Torcons: Extension context invalidated. Please refresh the page.');
+          if (window.torconsTokenInterval) clearInterval(window.torconsTokenInterval);
         } else {
-          tokenSynced = true;
+          console.error(err);
         }
-      });
+      }
     }
   } catch (error) {
     console.error("Torcons: Failed to read token from localStorage", error);
@@ -38,7 +47,7 @@ extractAndSyncToken();
 
 // Poll periodically to catch Single Page Application (SPA) logins/redirects.
 // The 'storage' event does not fire in the same tab that modifies localStorage.
-setInterval(extractAndSyncToken, 1000);
+window.torconsTokenInterval = setInterval(extractAndSyncToken, 1000);
 
 // Listen for changes in localStorage from other tabs
 window.addEventListener("storage", (event) => {

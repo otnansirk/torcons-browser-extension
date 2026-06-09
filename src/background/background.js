@@ -25,7 +25,13 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "ask-torcons" && info.selectionText) {
     pendingAsk = { type: "text", text: info.selectionText };
   } else if (info.menuItemId === "ask-torcons-image" && info.srcUrl) {
-    pendingAsk = { type: "image", imageUrl: info.srcUrl };
+    const imageUrl = getPublicUrl(info.srcUrl) || getPublicUrl(info.linkUrl);
+    pendingAsk = imageUrl
+      ? { type: "image", imageUrl }
+      : {
+          type: "error",
+          message: "This image does not expose a public image URL, so Torcons cannot send it. Try opening the image in a new tab and using that URL."
+        };
   }
 
   if (!pendingAsk) return;
@@ -43,6 +49,17 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     }).catch(err => console.error("Torcons Inject Error:", err));
   });
 });
+
+function getPublicUrl(url) {
+  if (!url) return null;
+
+  try {
+    const parsedUrl = new URL(url);
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:' ? parsedUrl.href : null;
+  } catch (e) {
+    return null;
+  }
+}
 
 // Handle extension icon click to toggle sidebar
 chrome.action.onClicked.addListener((tab) => {

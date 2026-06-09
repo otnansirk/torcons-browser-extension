@@ -339,9 +339,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.choices && data.choices.length > 0) {
                   const delta = data.choices[0].delta;
                   if (delta && delta.content) {
+                    const isNearBottom = chatHistory.scrollHeight - chatHistory.scrollTop - chatHistory.clientHeight < 50;
                     fullContent += delta.content;
                     bubble.innerHTML = renderMarkdown(fullContent);
-                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                    if (isNearBottom) {
+                      chatHistory.scrollTop = chatHistory.scrollHeight;
+                    }
                   }
                 }
               } catch (e) {
@@ -378,6 +381,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!ask) return;
 
     const normalizedAsk = typeof ask === 'string' ? { type: 'text', text: ask } : ask;
+    if (normalizedAsk.type === 'error') {
+      appendMessage('ai', normalizedAsk.message || 'Torcons could not process this image.');
+      return;
+    }
+
     const prompt = normalizedAsk.type === 'image'
       ? 'What can you tell me about this image?'
       : `Explain this snippet:\n\n"${normalizedAsk.text}"`;
@@ -388,7 +396,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
       : prompt;
 
-    if (normalizedAsk.type === 'image' && !normalizedAsk.imageUrl) return;
+    if (normalizedAsk.type === 'image' && !isPublicUrl(normalizedAsk.imageUrl)) {
+      appendMessage('ai', 'Torcons needs a public image URL. This image appears to be embedded as base64 or another local-only URL.');
+      return;
+    }
 
     // Remove inline summarize button if it exists
     const inlineContainer = document.getElementById('inline-summarize-container');
@@ -553,5 +564,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const p = document.createElement('p');
     p.textContent = str;
     return p.innerHTML.replace(/"/g, '&quot;');
+  }
+
+  function isPublicUrl(url) {
+    try {
+      const parsedUrl = new URL(url);
+      return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+    } catch (e) {
+      return false;
+    }
   }
 });

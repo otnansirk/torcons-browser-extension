@@ -160,11 +160,20 @@
     
     if (!moved) {
       // Treat as click
-      chrome.runtime.sendMessage({ action: 'toggle_sidebar' }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.warn('Torcons: Background worker not ready.');
+      try {
+        chrome.runtime.sendMessage({ action: 'toggle_sidebar' }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.warn('Torcons: Background worker not ready.');
+          }
+        });
+      } catch (err) {
+        if (err.message.includes('Extension context invalidated')) {
+          console.warn('Torcons: Extension was updated. Please refresh the page to continue using Torcons.');
+          container.remove(); // Remove the dead button
+        } else {
+          console.error(err);
         }
-      });
+      }
       return;
     }
 
