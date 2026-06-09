@@ -128,15 +128,24 @@
   // 6. Cross-origin Drag and Drop (Host Page -> Sidebar)
   let dragOverlay = null;
   let draggedImageUrl = null;
+  let draggedText = null;
 
   window.addEventListener('dragstart', (e) => {
+    draggedImageUrl = null;
+    draggedText = null;
+
     if (e.target && e.target.tagName === 'IMG') {
       draggedImageUrl = e.target.src;
     } else if (e.target && e.target.tagName === 'A' && e.target.querySelector('img')) {
       draggedImageUrl = e.target.querySelector('img').src;
+    } else {
+      const selection = window.getSelection().toString().trim();
+      if (selection) {
+        draggedText = selection;
+      }
     }
 
-    if (draggedImageUrl && document.getElementById(CONTAINER_ID)) {
+    if ((draggedImageUrl || draggedText) && document.getElementById(CONTAINER_ID)) {
       if (!dragOverlay) {
         dragOverlay = document.createElement('div');
         Object.assign(dragOverlay.style, {
@@ -154,11 +163,19 @@
 
         dragOverlay.addEventListener('drop', (ev) => {
           ev.preventDefault();
-          if (draggedImageUrl && iframe && iframe.contentWindow) {
-            iframe.contentWindow.postMessage({
-              type: 'TORCONS_EXTERNAL_DROP',
-              payload: { type: 'image', imageUrl: draggedImageUrl }
-            }, '*');
+          if (iframe && iframe.contentWindow) {
+            let payload = null;
+            if (draggedImageUrl) {
+              payload = { type: 'image', imageUrl: draggedImageUrl };
+            } else if (draggedText) {
+              payload = { type: 'text', text: draggedText };
+            }
+            if (payload) {
+              iframe.contentWindow.postMessage({
+                type: 'TORCONS_EXTERNAL_DROP',
+                payload: payload
+              }, '*');
+            }
           }
           cleanupDrag();
         });
@@ -177,6 +194,7 @@
       dragOverlay = null;
     }
     draggedImageUrl = null;
+    draggedText = null;
   }
 
 })();

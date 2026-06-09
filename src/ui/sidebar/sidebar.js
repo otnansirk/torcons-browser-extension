@@ -261,6 +261,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (imageUrl) {
       processPendingContextAsk({ type: 'image', imageUrl: imageUrl });
+    } else {
+      const textData = e.dataTransfer.getData('text/plain');
+      if (textData && textData.trim()) {
+        processPendingContextAsk({ type: 'text', text: textData.trim() });
+      }
     }
   });
 
