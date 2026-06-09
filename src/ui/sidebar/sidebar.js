@@ -152,6 +152,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.addEventListener('message', (event) => {
     if (event.source !== window.parent) return;
+    
+    if (event.data && event.data.type === 'TORCONS_EXTERNAL_DROP') {
+      if (authToken && event.data.payload) {
+        processPendingContextAsk(event.data.payload);
+      }
+      return;
+    }
+
     if (!event.data || event.data.type !== 'TORCONS_CHECK_PENDING_CONTEXT_ASK') return;
 
     if (authToken) {
@@ -185,6 +193,75 @@ document.addEventListener('DOMContentLoaded', () => {
 
   modelSelect.addEventListener('change', () => {
     chrome.storage.local.set({ [MODEL_STORAGE_KEY]: modelSelect.value || DEFAULT_MODEL });
+  });
+
+  // Drag and Drop Logic
+
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    chatView.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    }, false);
+  });
+
+  chatView.addEventListener('dragenter', () => {
+    chatView.classList.add('drag-over');
+  });
+
+  chatView.addEventListener('dragleave', (e) => {
+    // Only remove if leaving the chatView (not child elements)
+    if (!chatView.contains(e.relatedTarget)) {
+      chatView.classList.remove('drag-over');
+    }
+  });
+
+  chatView.addEventListener('drop', async (e) => {
+    chatView.classList.remove('drag-over');
+
+    let imageUrl = null;
+
+    // Handle dragged files (from OS)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('image/'));
+      if (file) {
+        imageUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (event) => resolve(event.target.result);
+          reader.readAsDataURL(file);
+        });
+      }
+    }
+
+    // Handle dragged images from the webpage
+    if (!imageUrl) {
+      const htmlData = e.dataTransfer.getData('text/html');
+      if (htmlData) {
+        const div = document.createElement('div');
+        div.innerHTML = htmlData;
+        const img = div.querySelector('img');
+        if (img && img.src) {
+          imageUrl = img.src;
+        }
+      }
+    }
+
+    if (!imageUrl) {
+      const uriList = e.dataTransfer.getData('text/uri-list');
+      if (uriList && (uriList.startsWith('http') || uriList.startsWith('data:image'))) {
+        imageUrl = uriList;
+      }
+    }
+
+    if (!imageUrl) {
+      const urlData = e.dataTransfer.getData('URL');
+      if (urlData && (urlData.startsWith('http') || urlData.startsWith('data:image'))) {
+        imageUrl = urlData;
+      }
+    }
+
+    if (imageUrl) {
+      processPendingContextAsk({ type: 'image', imageUrl: imageUrl });
+    }
   });
 
   // 4. Send Message Logic
@@ -295,7 +372,18 @@ document.addEventListener('DOMContentLoaded', () => {
     appendTypingIndicator();
 
     try {
-      let apiMessages = [...chatMessages];
+      let apiMessages = chatMessages.map(msg => {
+        if (msg.files && msg.files.length > 0) {
+          const newContent = [{ type: 'text', text: msg.content }];
+          msg.files.forEach(f => {
+            if (f.type === 'image' && f.url) {
+              newContent.push({ type: 'image_url', image_url: { url: f.url } });
+            }
+          });
+          return { role: msg.role, content: newContent };
+        }
+        return { role: msg.role, content: msg.content };
+      });
       const pageContext = await getCurrentPageContext();
       const storedModel = await getStoredModel();
       const selectedModel = modelSelect.disabled
@@ -407,6 +495,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  async function fetchImageAsBase64(url) {
+    if (url.startsWith('data:image/')) return url;
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type: 'FETCH_IMAGE_AS_BASE64', url }, (response) => {
+        resolve(response && response.base64 ? response.base64 : url);
+      });
+    });
+  }
+
   async function processPendingContextAsk(ask) {
     if (!ask) return;
 
@@ -420,14 +517,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const attachmentContainer = document.getElementById('attachment-preview');
     const attachmentContent = attachmentContainer.querySelector('.attachment-content');
+    attachmentContainer.classList.remove('hidden');
     
     if (normalizedAsk.type === 'image') {
+      attachmentContent.innerHTML = `<span style="font-size: 12px; opacity: 0.7;">Loading image...</span>`;
+      normalizedAsk.imageUrl = await fetchImageAsBase64(normalizedAsk.imageUrl);
       attachmentContent.innerHTML = `<img src="${normalizedAsk.imageUrl}" alt="Attached Image">`;
     } else {
       attachmentContent.textContent = `"${normalizedAsk.text}"`;
     }
     
-    attachmentContainer.classList.remove('hidden');
     sendBtn.disabled = false;
     chatInput.focus();
 

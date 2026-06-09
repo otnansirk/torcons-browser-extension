@@ -30,7 +30,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       ? { type: "image", imageUrl }
       : {
           type: "error",
-          message: "This image does not expose a public image URL, so Torcons cannot send it. Try opening the image in a new tab and using that URL."
+          message: "This image cannot be sent. Try opening the image in a new tab and using that URL."
         };
   }
 
@@ -52,6 +52,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 function getPublicUrl(url) {
   if (!url) return null;
+  if (url.startsWith('data:image/')) return url;
 
   try {
     const parsedUrl = new URL(url);
@@ -105,6 +106,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       sendResponse({ ask });
     });
+    return true;
+  } else if (message.type === 'FETCH_IMAGE_AS_BASE64') {
+    if (message.url.startsWith('data:image/')) {
+      sendResponse({ base64: message.url });
+      return false;
+    }
+    fetch(message.url)
+      .then(res => res.blob())
+      .then(blob => {
+        const reader = new FileReader();
+        reader.onloadend = () => sendResponse({ base64: reader.result });
+        reader.onerror = () => sendResponse({ base64: message.url });
+        reader.readAsDataURL(blob);
+      })
+      .catch(err => {
+        console.warn("Torcons Background Fetch Error:", err);
+        sendResponse({ base64: message.url });
+      });
     return true;
   } else if (message.action === 'toggle_sidebar') {
     chrome.scripting.executeScript({

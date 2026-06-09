@@ -125,4 +125,58 @@
     }
   });
 
+  // 6. Cross-origin Drag and Drop (Host Page -> Sidebar)
+  let dragOverlay = null;
+  let draggedImageUrl = null;
+
+  window.addEventListener('dragstart', (e) => {
+    if (e.target && e.target.tagName === 'IMG') {
+      draggedImageUrl = e.target.src;
+    } else if (e.target && e.target.tagName === 'A' && e.target.querySelector('img')) {
+      draggedImageUrl = e.target.querySelector('img').src;
+    }
+
+    if (draggedImageUrl && document.getElementById(CONTAINER_ID)) {
+      if (!dragOverlay) {
+        dragOverlay = document.createElement('div');
+        Object.assign(dragOverlay.style, {
+          position: 'absolute',
+          top: '0', left: '6px', right: '0', bottom: '0', // skip 6px resizer
+          zIndex: '2147483649', // above iframe and resizer
+          backgroundColor: 'rgba(37, 99, 235, 0.1)',
+          border: '2px dashed rgba(37, 99, 235, 0.8)'
+        });
+        
+        dragOverlay.addEventListener('dragover', (ev) => {
+          ev.preventDefault();
+          ev.dataTransfer.dropEffect = 'copy';
+        });
+
+        dragOverlay.addEventListener('drop', (ev) => {
+          ev.preventDefault();
+          if (draggedImageUrl && iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({
+              type: 'TORCONS_EXTERNAL_DROP',
+              payload: { type: 'image', imageUrl: draggedImageUrl }
+            }, '*');
+          }
+          cleanupDrag();
+        });
+
+        container.appendChild(dragOverlay);
+      }
+    }
+  });
+
+  window.addEventListener('dragend', () => cleanupDrag());
+  window.addEventListener('mouseup', () => cleanupDrag()); // Fallback
+
+  function cleanupDrag() {
+    if (dragOverlay) {
+      dragOverlay.remove();
+      dragOverlay = null;
+    }
+    draggedImageUrl = null;
+  }
+
 })();
