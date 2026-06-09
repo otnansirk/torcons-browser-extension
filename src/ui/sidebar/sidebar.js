@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatHistory = document.getElementById('chat-history');
   const modelSelect = document.getElementById('model-select');
   const settingsBtn = document.getElementById('settings-btn');
+  const removeAttachmentBtn = document.getElementById('remove-attachment-btn');
   const DEFAULT_MODEL = 'Torcons';
   const MODEL_STORAGE_KEY = 'selectedModel';
 
@@ -18,10 +19,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (removeAttachmentBtn) {
+    removeAttachmentBtn.addEventListener('click', () => {
+      pendingAttachment = null;
+      document.getElementById('attachment-preview').classList.add('hidden');
+      document.querySelector('.attachment-content').innerHTML = '';
+      sendBtn.disabled = chatInput.value.trim().length === 0;
+    });
+  }
+
   let authToken = null;
   let modelsFetched = false;
   let chatMessages = [];
   let currentPageKey = null;
+  let pendingAttachment = null;
 
   const initPageKey = async () => {
     try {
@@ -77,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // Render existing messages
           chatMessages.forEach(msg => {
             if (msg.role !== 'system') {
-              appendMessage(msg.role === 'assistant' ? 'ai' : 'user', msg.content);
+              appendMessage(msg.role === 'assistant' ? 'ai' : 'user', msg);
             }
           });
         } else {
@@ -160,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
   chatInput.addEventListener('input', () => {
     chatInput.style.height = 'auto';
     chatInput.style.height = (chatInput.scrollHeight) + 'px';
-    sendBtn.disabled = chatInput.value.trim().length === 0;
+    sendBtn.disabled = chatInput.value.trim().length === 0 && !pendingAttachment;
   });
 
   chatInput.addEventListener('keydown', (e) => {
@@ -179,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 4. Send Message Logic
   async function handleSend() {
     const text = chatInput.value.trim();
-    if (!text) return;
+    if (!text && !pendingAttachment) return;
 
     // Reset input
     chatInput.value = '';
@@ -190,9 +201,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const inlineContainer = document.getElementById('inline-summarize-container');
     if (inlineContainer) inlineContainer.remove();
 
+    let messageObj = { role: "user", content: text };
+
+    if (pendingAttachment) {
+      if (pendingAttachment.type === 'image') {
+        messageObj.content = text ? text : 'What can you tell me about this image?';
+        messageObj.files = [{ type: "image", url: pendingAttachment.imageUrl }];
+      } else {
+        const promptText = text ? text : 'Explain this snippet:';
+        messageObj.content = `${promptText}\n\n"${pendingAttachment.text}"`;
+      }
+      
+      pendingAttachment = null;
+      document.getElementById('attachment-preview').classList.add('hidden');
+      document.querySelector('.attachment-content').innerHTML = '';
+    }
+
     // Add User Message to UI
-    appendMessage('user', text);
-    chatMessages.push({ role: "user", content: text });
+    appendMessage('user', messageObj);
+    chatMessages.push(messageObj);
     saveHistory();
 
     // Fetch AI Response
@@ -200,9 +227,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // 5. Append Message to UI
-  function appendMessage(role, content) {
+  function appendMessage(role, msg) {
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${role}-message`;
+
+    const content = typeof msg === 'object' && msg !== null && !Array.isArray(msg) && msg.content !== undefined ? msg.content : msg;
+    const files = typeof msg === 'object' && msg !== null && !Array.isArray(msg) && msg.files ? msg.files : [];
 
     if (role === 'ai') {
       msgDiv.innerHTML = `
@@ -210,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="bubble" style="line-height: 1.6;">${renderMarkdown(content)}</div>
       `;
     } else {
-      msgDiv.innerHTML = `<div class="bubble">${renderUserContent(content)}</div>`;
+      msgDiv.innerHTML = `<div class="bubble">${renderUserContent(content, files)}</div>`;
     }
 
     chatHistory.appendChild(msgDiv);
@@ -386,30 +416,24 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const prompt = normalizedAsk.type === 'image'
-      ? 'What can you tell me about this image?'
-      : `Explain this snippet:\n\n"${normalizedAsk.text}"`;
-    const messageContent = normalizedAsk.type === 'image'
-      ? [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: normalizedAsk.imageUrl } }
-        ]
-      : prompt;
-
-    if (normalizedAsk.type === 'image' && !isPublicUrl(normalizedAsk.imageUrl)) {
-      appendMessage('ai', 'Torcons needs a public image URL. This image appears to be embedded as base64 or another local-only URL.');
-      return;
+    pendingAttachment = normalizedAsk;
+    
+    const attachmentContainer = document.getElementById('attachment-preview');
+    const attachmentContent = attachmentContainer.querySelector('.attachment-content');
+    
+    if (normalizedAsk.type === 'image') {
+      attachmentContent.innerHTML = `<img src="${normalizedAsk.imageUrl}" alt="Attached Image">`;
+    } else {
+      attachmentContent.textContent = `"${normalizedAsk.text}"`;
     }
+    
+    attachmentContainer.classList.remove('hidden');
+    sendBtn.disabled = false;
+    chatInput.focus();
 
     // Remove inline summarize button if it exists
     const inlineContainer = document.getElementById('inline-summarize-container');
     if (inlineContainer) inlineContainer.remove();
-
-    appendMessage('user', messageContent);
-    chatMessages.push({ role: "user", content: messageContent });
-    saveHistory();
-
-    await fetchAIResponse();
   }
 
   // 7. Summarize Page Logic
@@ -534,9 +558,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return parts.join('');
   }
 
-  function renderUserContent(content) {
+  function renderUserContent(content, files = []) {
+    let html = '';
     if (Array.isArray(content)) {
-      return content.map(part => {
+      html = content.map(part => {
         if (part.type === 'text') {
           return escapeHTML(part.text || '');
         }
@@ -548,9 +573,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return '';
       }).join('');
+    } else {
+      html = escapeHTML(content || '');
     }
 
-    return escapeHTML(content || '');
+    if (files && files.length > 0) {
+      files.forEach(file => {
+        if (file.type === 'image' && file.url) {
+          const imageUrl = escapeAttribute(file.url);
+          html += `<br><img class="message-image" src="${imageUrl}" alt="Selected image">`;
+        }
+      });
+    }
+
+    return html;
   }
 
   // Utility to prevent XSS in simple strings
@@ -566,12 +602,4 @@ document.addEventListener('DOMContentLoaded', () => {
     return p.innerHTML.replace(/"/g, '&quot;');
   }
 
-  function isPublicUrl(url) {
-    try {
-      const parsedUrl = new URL(url);
-      return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
-    } catch (e) {
-      return false;
-    }
-  }
 });

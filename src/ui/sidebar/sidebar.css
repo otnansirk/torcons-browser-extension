@@ -379,6 +379,64 @@ body {
   background: transparent;
 }
 
+#attachment-preview {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  background: var(--bg-panel);
+  border: 1px solid var(--accent-color);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 10px;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+#attachment-preview.hidden {
+  display: none;
+}
+
+.attachment-content {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  max-height: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+.attachment-content img {
+  max-height: 80px;
+  max-width: 100%;
+  border-radius: 6px;
+  object-fit: contain;
+}
+
+#remove-attachment-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: var(--text-secondary);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 10px;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+#remove-attachment-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
 .input-wrapper {
   display: flex;
   align-items: flex-end;
