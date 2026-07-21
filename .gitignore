@@ -6,6 +6,7 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+web-ext-artifacts/
 
 # Chrome Extension files
 *.pem
