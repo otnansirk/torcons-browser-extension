@@ -46,5 +46,11 @@
       "resources": ["src/ui/sidebar/sidebar.html", "src/ui/sidebar/sidebar.css", "src/ui/sidebar/sidebar.js", "assets/*"],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "hello@torcons.ai",
+      "strict_min_version": "115.0"
+    }
+  }
 }
