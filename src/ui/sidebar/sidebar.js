@@ -525,10 +525,12 @@ document.addEventListener('DOMContentLoaded', () => {
     attachmentContainer.classList.remove('hidden');
     
     if (normalizedAsk.type === 'image') {
+      attachmentContent.style.display = 'block';
       attachmentContent.innerHTML = `<span style="font-size: 12px; opacity: 0.7;">Loading image...</span>`;
       normalizedAsk.imageUrl = await fetchImageAsBase64(normalizedAsk.imageUrl);
-      attachmentContent.innerHTML = `<img src="${normalizedAsk.imageUrl}" alt="Attached Image">`;
+      attachmentContent.innerHTML = `<img src="${normalizedAsk.imageUrl}" alt="Attached Image" style="display: block; max-height: 80px; max-width: 100%; border-radius: 6px; object-fit: contain;">`;
     } else {
+      attachmentContent.style.display = '-webkit-box';
       attachmentContent.textContent = `"${normalizedAsk.text}"`;
     }
     

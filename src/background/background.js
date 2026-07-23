@@ -114,11 +114,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     fetch(message.url)
       .then(res => res.blob())
-      .then(blob => {
-        const reader = new FileReader();
-        reader.onloadend = () => sendResponse({ base64: reader.result });
-        reader.onerror = () => sendResponse({ base64: message.url });
-        reader.readAsDataURL(blob);
+      .then(async blob => {
+        try {
+          const buffer = await blob.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          const len = bytes.byteLength;
+          const CHUNK_SIZE = 8192;
+          let binary = '';
+          for (let i = 0; i < len; i += CHUNK_SIZE) {
+            const chunk = bytes.subarray(i, i + CHUNK_SIZE);
+            binary += String.fromCharCode.apply(null, chunk);
+          }
+          const base64Data = `data:${blob.type || 'image/jpeg'};base64,${btoa(binary)}`;
+          sendResponse({ base64: base64Data });
+        } catch (err) {
+          console.warn("Torcons Background ArrayBuffer Error:", err);
+          sendResponse({ base64: message.url });
+        }
       })
       .catch(err => {
         console.warn("Torcons Background Fetch Error:", err);
