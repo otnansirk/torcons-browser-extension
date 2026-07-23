@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Torcons",
-  "version": "1.0",
+  "version": "1.0.1",
   "description": "AI Assistant to summarize pages and answer questions.",
   "icons": {
     "16": "assets/favicon-96x96.png",
