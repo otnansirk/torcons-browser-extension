@@ -1,6 +1,8 @@
 // floating_button.js
 
 (function() {
+  // Never show the floating button on chat.torcons.ai
+  if (location.hostname === 'chat.torcons.ai') return;
   if (document.getElementById('torcons-floating-btn-container')) return;
 
   const container = document.createElement('div');
