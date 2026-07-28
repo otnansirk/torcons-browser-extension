@@ -62,17 +62,38 @@ function getPublicUrl(url) {
   }
 }
 
-// Handle extension icon click to toggle sidebar
+// Handle extension icon click
+// - Restricted pages (Web Store, chrome://, extension pages): open/focus chat.torcons.ai
+// - Normal pages: toggle the Torcons sidebar
 chrome.action.onClicked.addListener((tab) => {
-  if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('https://chrome.google.com/webstore'))) {
-    console.warn("Torcons cannot be injected into restricted pages.");
-    return;
-  }
+  const isRestricted =
+    !tab.url ||
+    tab.url.startsWith('chrome://') ||
+    tab.url.startsWith('chrome-extension://') ||
+    tab.url.startsWith('about:') ||
+    tab.url.startsWith('moz-extension://') ||
+    tab.url.startsWith('https://chrome.google.com/webstore') ||
+    tab.url.startsWith('https://chromewebstore.google.com');
 
-  chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    files: ['src/content/sidebar_injector.js']
-  }).catch(err => console.error("Torcons Inject Error:", err));
+  if (isRestricted) {
+    // Can't inject into this page — open or focus chat.torcons.ai instead
+    const targetUrl = "https://chat.torcons.ai/";
+    chrome.tabs.query({}, (tabs) => {
+      const existing = tabs.find(t => t.url && t.url.startsWith(targetUrl));
+      if (existing) {
+        chrome.tabs.update(existing.id, { active: true });
+        chrome.windows.update(existing.windowId, { focused: true });
+      } else {
+        chrome.tabs.create({ url: targetUrl });
+      }
+    });
+  } else {
+    // Normal page — toggle the sidebar
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ['src/content/sidebar_injector.js']
+    }).catch(err => console.error("Torcons Inject Error:", err));
+  }
 });
 
 // Listen for messages from the content script injected into chat.torcons.ai
