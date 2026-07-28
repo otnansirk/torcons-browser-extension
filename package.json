@@ -1,6 +1,6 @@
 {
   "name": "torcons-extension",
-  "version": "1.0.1",
+  "version": "1.2.0",
   "description": "AI Assistant to summarize pages and answer questions.",
   "scripts": {
     "dev": "web-ext run --target=chromium",
