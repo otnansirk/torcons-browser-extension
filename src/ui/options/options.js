@@ -82,4 +82,49 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePromptUI();
     saveOptions();
   });
+
+  // ── Account / Logout ──────────────────────────────────────────────────────
+  const logoutBtn = document.getElementById('logout-btn');
+
+  function setSignedIn() {
+    logoutBtn.style.display = 'block';
+    logoutBtn.textContent   = 'Log Out';
+    logoutBtn.className     = 'logout-btn';
+    logoutBtn.onclick       = doLogout;
+  }
+
+  function setSignedOut() {
+    logoutBtn.style.display = 'block';
+    logoutBtn.textContent   = 'Sign In';
+    logoutBtn.className     = 'logout-btn signin-btn';
+    logoutBtn.onclick       = doSignIn;
+  }
+
+  function refreshAuthStatus() {
+    chrome.storage.local.get(['token'], ({ token }) => {
+      token ? setSignedIn() : setSignedOut();
+    });
+  }
+
+  function doLogout() {
+    chrome.storage.local.remove('token', () => {
+      logoutBtn.textContent = 'Logged Out ✓';
+      logoutBtn.classList.add('done');
+      setTimeout(() => setSignedOut(), 1500);
+    });
+  }
+
+  function doSignIn() {
+    chrome.tabs.create({ url: 'https://chat.torcons.ai/' });
+    // Watch for the token to arrive after the user logs in
+    const unwatch = chrome.storage.onChanged.addListener((changes, ns) => {
+      if (ns === 'local' && changes.token && changes.token.newValue) {
+        refreshAuthStatus();
+        chrome.storage.onChanged.removeListener(unwatch);
+      }
+    });
+  }
+
+  refreshAuthStatus();
+  // ─────────────────────────────────────────────────────────────────────────
 });
