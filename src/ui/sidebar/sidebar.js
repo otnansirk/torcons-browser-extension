@@ -484,7 +484,23 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       removeTypingIndicator();
       console.error(error);
-      appendMessage('ai', `Oops, something went wrong: ${error.message}`);
+
+      if (error.message.startsWith('Authentication failed')) {
+        // Show a rich auth-error card with step-by-step instructions
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'message ai-message';
+        msgDiv.innerHTML = `
+          <div class="avatar"><img src="/assets/favicon-96x96.png" alt="Torcons"></div>
+          <div class="bubble auth-error-card">
+            <p class="auth-error-title">⚠️ Authentication Failed</p>
+            <p class="auth-error-desc">Your session has expired or is invalid. Follow these steps to reconnect:</p>
+          </div>
+        `;
+        chatHistory.appendChild(msgDiv);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+      } else {
+        appendMessage('ai', `Oops, something went wrong: ${error.message}`);
+      }
 
       // Remove the last user message from memory so it doesn't pollute the context
       chatMessages.pop();
