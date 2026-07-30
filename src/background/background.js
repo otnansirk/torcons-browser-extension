@@ -1,6 +1,10 @@
 // background.js
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
+    chrome.tabs.create({ url: "https://torcons.ai/extension" });
+  }
+
   chrome.contextMenus.create({
     id: "ask-torcons",
     title: "Ask Torcons about this",
