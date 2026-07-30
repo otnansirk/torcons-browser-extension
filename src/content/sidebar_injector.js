@@ -35,7 +35,7 @@
   container.id = CONTAINER_ID;
   container.dataset.originalWidth = document.documentElement.style.width;
   
-  const initialWidth = 400;
+  const initialWidth = 550;
   document.documentElement.style.width = `calc(100% - ${initialWidth}px)`;
   document.documentElement.style.setProperty('--torcons-sidebar-width', initialWidth + 'px');
   
