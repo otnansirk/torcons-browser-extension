@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const signinBtn = document.getElementById('signin-btn');
   const chatInput = document.getElementById('chat-input');
   const sendBtn = document.getElementById('send-btn');
+  const uploadBtn = document.getElementById('upload-btn');
+  const fileUpload = document.getElementById('file-upload');
   const chatHistory = document.getElementById('chat-history');
   const modelSelect = document.getElementById('model-select');
   const settingsBtn = document.getElementById('settings-btn');
@@ -190,6 +192,36 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   sendBtn.addEventListener('click', handleSend);
+
+  if (uploadBtn && fileUpload) {
+    uploadBtn.addEventListener('click', () => {
+      fileUpload.click();
+    });
+
+    fileUpload.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = (event) => {
+          if (file.type.startsWith('image/')) {
+            processPendingContextAsk({ type: 'image', imageUrl: event.target.result });
+          } else {
+            processPendingContextAsk({ type: 'text', text: event.target.result });
+          }
+        };
+
+        if (file.type.startsWith('image/')) {
+          reader.readAsDataURL(file);
+        } else {
+          reader.readAsText(file);
+        }
+        
+        // Reset so same file can be chosen again if removed
+        e.target.value = '';
+      }
+    });
+  }
 
   modelSelect.addEventListener('change', () => {
     chrome.storage.local.set({ [MODEL_STORAGE_KEY]: modelSelect.value || DEFAULT_MODEL });
