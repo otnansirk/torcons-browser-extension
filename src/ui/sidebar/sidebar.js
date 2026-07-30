@@ -670,11 +670,46 @@ document.addEventListener('DOMContentLoaded', () => {
     html = html.replace(/^\s*[\-\*] (.*$)/gim, '<li style="margin-left: 20px;">$1</li>');
     html = html.replace(/^\s*\d+\. (.*$)/gim, '<li style="margin-left: 20px;">$1</li>');
 
+    // Tables
+    html = html.replace(/(?:^|\n)((?:\|[^\n]+\|\n?)+)/g, function(match, tableBlock) {
+      const lines = tableBlock.trim().split('\n');
+      if (lines.length < 2 || !lines[1].match(/^\|?\s*[-:]+[\s\-:|]*$/)) {
+         return match;
+      }
+      let tableHtml = '<div style="overflow-x:auto;"><table style="border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13px;">';
+      let isHeader = true;
+      for (let line of lines) {
+        if (line.match(/^\|?\s*[-:]+[\s\-:|]*$/)) {
+          isHeader = false;
+          continue;
+        }
+        let rowHtml = '<tr>';
+        const cells = line.trim().split('|');
+        if (cells[0] === '') cells.shift();
+        if (cells[cells.length - 1] === '') cells.pop();
+        for (let cell of cells) {
+          const content = cell.trim();
+          if (isHeader) {
+            rowHtml += `<th style="border: 1px solid rgba(255,255,255,0.2); padding: 8px; background: rgba(0,0,0,0.2); text-align: left;">${content}</th>`;
+          } else {
+            rowHtml += `<td style="border: 1px solid rgba(255,255,255,0.2); padding: 8px;">${content}</td>`;
+          }
+        }
+        rowHtml += '</tr>';
+        tableHtml += rowHtml;
+      }
+      tableHtml += '</table></div>';
+      return '\n' + tableHtml + '\n';
+    });
+
     // Process newlines outside of pre blocks
     const parts = html.split(/(<pre[\s\S]*?<\/pre>)/);
     for (let i = 0; i < parts.length; i++) {
       if (!parts[i].startsWith('<pre')) {
         parts[i] = parts[i].replace(/\n/g, '<br>');
+        // Clean up redundant br tags around block elements
+        parts[i] = parts[i].replace(/(<\/(?:li|h1|h2|h3|table|tr|td|th|div)>)<br>/g, '$1');
+        parts[i] = parts[i].replace(/<br>(<(?:li|h1|h2|h3|table|tr|td|th|div)[^>]*>)/g, '$1');
       }
     }
     return parts.join('');
