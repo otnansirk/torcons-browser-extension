@@ -152,6 +152,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   checkAuth();
 
+  // Handle SPA (Client-Side Rendering) navigation
+  chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+    if (changeInfo.url && authToken) {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (activeTab && activeTab.id === tabId) {
+        const newUrl = changeInfo.url.split('#')[0];
+        const newKey = `history_${newUrl}`;
+        if (newKey !== currentPageKey) {
+          currentPageKey = newKey;
+          await loadHistory();
+        }
+      }
+    }
+  });
+
   window.addEventListener('message', (event) => {
     if (event.source !== window.parent) return;
     
