@@ -1,5 +1,18 @@
 // background.js
 
+chrome.sidePanel.setOptions({ enabled: false }).catch(() => {});
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {});
+
+function openTabSidePanel(tabId) {
+  chrome.sidePanel.setOptions({
+    tabId,
+    path: 'src/ui/sidebar/sidebar.html',
+    enabled: true
+  }).catch(err => console.error("setOptions error:", err));
+  
+  return chrome.sidePanel.open({ tabId });
+}
+
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
     chrome.tabs.create({ url: "https://torcons.ai/extension" });
@@ -17,13 +30,14 @@ chrome.runtime.onInstalled.addListener((details) => {
   });
 });
 
+chrome.action.onClicked.addListener((tab) => {
+  if (tab && tab.id) {
+    openTabSidePanel(tab.id).catch(console.error);
+  }
+});
+
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (!tab || !tab.id) return;
-
-  if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('https://chrome.google.com/webstore'))) {
-    console.warn("Torcons cannot be injected into restricted pages.");
-    return;
-  }
 
   let pendingAsk = null;
   if (info.menuItemId === "ask-torcons" && info.selectionText) {
@@ -42,15 +56,9 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
   const pendingKey = `pendingContextAsk_${tab.id}`;
   chrome.storage.session.set({ [pendingKey]: pendingAsk }, () => {
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: () => { window.torconsActionType = 'open'; }
-    }).then(() => {
-      return chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['src/content/sidebar_injector.js']
-      });
-    }).catch(err => console.error("Torcons Inject Error:", err));
+    openTabSidePanel(tab.id).then(() => {
+      setTimeout(() => chrome.runtime.sendMessage({ type: 'TORCONS_CHECK_PENDING_CONTEXT_ASK' }).catch(() => {}), 100);
+    }).catch(err => console.error("Side Panel Error:", err));
   });
 });
 
@@ -65,40 +73,6 @@ function getPublicUrl(url) {
     return null;
   }
 }
-
-// Handle extension icon click
-// - Restricted pages (Web Store, chrome://, extension pages): open/focus chat.torcons.ai
-// - Normal pages: toggle the Torcons sidebar
-chrome.action.onClicked.addListener((tab) => {
-  const isRestricted =
-    !tab.url ||
-    tab.url.startsWith('chrome://') ||
-    tab.url.startsWith('chrome-extension://') ||
-    tab.url.startsWith('about:') ||
-    tab.url.startsWith('moz-extension://') ||
-    tab.url.startsWith('https://chrome.google.com/webstore') ||
-    tab.url.startsWith('https://chromewebstore.google.com');
-
-  if (isRestricted) {
-    // Can't inject into this page — open or focus chat.torcons.ai instead
-    const targetUrl = "https://chat.torcons.ai/";
-    chrome.tabs.query({}, (tabs) => {
-      const existing = tabs.find(t => t.url && t.url.startsWith(targetUrl));
-      if (existing) {
-        chrome.tabs.update(existing.id, { active: true });
-        chrome.windows.update(existing.windowId, { focused: true });
-      } else {
-        chrome.tabs.create({ url: targetUrl });
-      }
-    });
-  } else {
-    // Normal page — toggle the sidebar
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ['src/content/sidebar_injector.js']
-    }).catch(err => console.error("Torcons Inject Error:", err));
-  }
-});
 
 // Listen for messages from the content script injected into chat.torcons.ai
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -117,7 +91,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     return true; // Keep message channel open for async response
   } else if (message.type === "GET_PENDING_CONTEXT_ASK") {
-    const tabId = sender.tab && sender.tab.id;
+    const tabId = message.tabId || (sender.tab && sender.tab.id);
     if (!tabId) {
       sendResponse({ ask: null });
       return false;
@@ -162,16 +136,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ base64: message.url });
       });
     return true;
-  } else if (message.action === 'toggle_sidebar') {
-    chrome.scripting.executeScript({
-      target: { tabId: sender.tab.id },
-      files: ['src/content/sidebar_injector.js']
-    }).then(() => {
-      sendResponse({ success: true });
-    }).catch(err => {
-      console.error("Torcons Inject Error:", err);
-      sendResponse({ success: false, error: err.message });
-    });
+  } else if (message.type === 'GET_SIDEPANEL_STATE') {
+    const tabId = sender.tab && sender.tab.id;
+    sendResponse({ isOpen: sidePanels.has(tabId) });
+    return false;
+  } else if (message.action === 'toggle_side_panel') {
+    const tabId = sender.tab.id;
+    if (sidePanels.has(tabId)) {
+      chrome.sidePanel.setOptions({ tabId, enabled: false }).catch(() => {});
+      try {
+        sidePanels.get(tabId).postMessage({ type: 'CLOSE_SIDEPANEL' });
+      } catch(e) {}
+      sendResponse({ success: true, action: 'closed' });
+    } else {
+      openTabSidePanel(tabId)
+        .then(() => sendResponse({ success: true, action: 'opened' }))
+        .catch(err => {
+          console.error("Side Panel Error:", err);
+          sendResponse({ success: false, error: err.message });
+        });
+      return true;
+    }
+  } else if (message.action === 'open_side_panel') {
+    openTabSidePanel(sender.tab.id)
+      .then(() => sendResponse({ success: true }))
+      .catch(err => {
+        console.error("Side Panel Error:", err);
+        sendResponse({ success: false, error: err.message });
+      });
     return true; // Keep message channel open for async response
+  }
+});
+
+const sidePanels = new Map(); // tabId -> port
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === 'torcons_sidepanel') {
+    let panelTabId = null;
+
+    port.onMessage.addListener((msg) => {
+      if (msg.type === 'INIT' && msg.tabId) {
+        panelTabId = msg.tabId;
+        sidePanels.set(panelTabId, port);
+        chrome.tabs.sendMessage(panelTabId, { type: 'SIDEPANEL_STATE_CHANGED', isOpen: true }).catch(()=>{});
+      }
+    });
+
+    port.onDisconnect.addListener(() => {
+      if (panelTabId) {
+        sidePanels.delete(panelTabId);
+        chrome.tabs.sendMessage(panelTabId, { type: 'SIDEPANEL_STATE_CHANGED', isOpen: false }).catch(()=>{});
+      }
+    });
   }
 });

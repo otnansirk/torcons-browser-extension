@@ -57,6 +57,30 @@
 
   const fab = shadow.getElementById('fab');
   
+  let isSidePanelOpen = false;
+
+  function updateIcon() {
+    if (isSidePanelOpen) {
+      fab.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+    } else {
+      fab.innerHTML = `<img src="${iconUrl}" alt="Torcons">`;
+    }
+  }
+
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'SIDEPANEL_STATE_CHANGED') {
+      isSidePanelOpen = message.isOpen;
+      updateIcon();
+    }
+  });
+
+  chrome.runtime.sendMessage({ type: 'GET_SIDEPANEL_STATE' }, (response) => {
+    if (response) {
+      isSidePanelOpen = response.isOpen;
+      updateIcon();
+    }
+  });
+  
   let isDragging = false;
   let startX, startY, initialLeft, initialTop;
   let moved = false;
@@ -103,9 +127,7 @@
     
     const btnSize = 48;
     
-    const sidebarWidthStr = document.documentElement.style.getPropertyValue('--torcons-sidebar-width');
-    const sidebarW = sidebarWidthStr ? parseInt(sidebarWidthStr) : 0;
-    const effWidth = window.innerWidth - sidebarW;
+    const effWidth = window.innerWidth;
     
     // Boundary checks
     newLeft = Math.max(0, Math.min(effWidth - btnSize, newLeft));
@@ -114,18 +136,13 @@
     container.style.left = newLeft + 'px';
     container.style.top = newTop + 'px';
   });
-  function getSidebarWidth() {
-    const val = document.documentElement.style.getPropertyValue('--torcons-sidebar-width');
-    return val ? parseInt(val) : 0;
-  }
 
   function snapToEdges() {
     const rect = container.getBoundingClientRect();
     const btnSize = 48;
     const padding = 20; 
     
-    const sidebarW = getSidebarWidth();
-    const effWidth = window.innerWidth - sidebarW;
+    const effWidth = window.innerWidth;
     
     const cx = effWidth / 2;
     const cy = window.innerHeight / 2;
@@ -163,7 +180,7 @@
     if (!moved) {
       // Treat as click
       try {
-        chrome.runtime.sendMessage({ action: 'toggle_sidebar' }, (response) => {
+        chrome.runtime.sendMessage({ action: 'toggle_side_panel' }, (response) => {
           if (chrome.runtime.lastError) {
             console.warn('Torcons: Background worker not ready.');
           }
@@ -183,26 +200,12 @@
     snapToEdges();
   });
 
-  function updateIcon() {
-    const isSidebarOpen = document.getElementById('torcons-sidebar-container') !== null;
-    if (isSidebarOpen) {
-      fab.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-    } else {
-      fab.innerHTML = `<img src="${iconUrl}" alt="Torcons">`;
-    }
-  }
-
-  window.addEventListener('torcons-sidebar-updated', (e) => {
+  window.addEventListener('resize', () => {
     if (!isDragging) {
-      const isSidebarResizing = e.detail && e.detail.resizing;
-      setTransition(!isSidebarResizing);
+      setTransition(true);
       snapToEdges();
     }
-    updateIcon();
   });
-
-  // Call it initially in case sidebar is already open
-  updateIcon();
 
   const dynamicStyle = document.createElement('style');
   shadow.appendChild(dynamicStyle);

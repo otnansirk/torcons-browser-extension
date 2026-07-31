@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatHistory = document.getElementById('chat-history');
   const modelSelect = document.getElementById('model-select');
   const settingsBtn = document.getElementById('settings-btn');
-  const closeSidebarBtn = document.getElementById('close-sidebar-btn');
   const removeAttachmentBtn = document.getElementById('remove-attachment-btn');
   const DEFAULT_MODEL = 'Torcons';
   const MODEL_STORAGE_KEY = 'selectedModel';
@@ -22,11 +21,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (closeSidebarBtn) {
-    closeSidebarBtn.addEventListener('click', () => {
-      window.parent.postMessage({ type: 'TORCONS_CLOSE_SIDEBAR' }, '*');
-    });
-  }
+  // Connect to background script to track open/close state
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]) {
+      const port = chrome.runtime.connect({ name: 'torcons_sidepanel' });
+      port.postMessage({ type: 'INIT', tabId: tabs[0].id });
+      
+      port.onMessage.addListener((message) => {
+        if (message.type === 'CLOSE_SIDEPANEL') {
+          window.close();
+        }
+      });
+    }
+  });
 
   if (removeAttachmentBtn) {
     removeAttachmentBtn.addEventListener('click', () => {
@@ -48,6 +55,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const url = tab && tab.url ? tab.url.split('#')[0] : 'unknown_page';
       currentPageKey = `history_${url}`;
+      
+      const headerTitle = document.getElementById('header-page-title');
+      if (headerTitle) {
+        headerTitle.textContent = tab && tab.title ? tab.title : 'Torcons';
+        headerTitle.title = tab && tab.title ? tab.title : '';
+      }
     } catch (e) {
       currentPageKey = 'history_unknown_page';
     }
@@ -100,6 +113,12 @@ document.addEventListener('DOMContentLoaded', () => {
               appendMessage(msg.role === 'assistant' ? 'ai' : 'user', msg);
             }
           });
+          
+          if (window.activeStreams && window.activeStreams[currentPageKey]) {
+            const msgDiv = appendMessage('ai', window.activeStreams[currentPageKey].content);
+            window.activeStreams[currentPageKey].bubble = msgDiv.querySelector('.bubble');
+            appendTypingIndicator();
+          }
         } else {
           // New day or no history
           const systemMsg = await loadSystemConfig();
@@ -114,6 +133,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   };
+
+  window.activeStreams = window.activeStreams || {};
 
   // 1. Authentication Check
   const checkAuth = async () => {
@@ -163,17 +184,80 @@ document.addEventListener('DOMContentLoaded', () => {
 
   checkAuth();
 
-  // Handle SPA (Client-Side Rendering) navigation
+  let draftInputs = {};
+
+  const saveDraft = () => {
+    if (currentPageKey) {
+      draftInputs[currentPageKey] = {
+        text: chatInput.value,
+        attachment: pendingAttachment
+      };
+    }
+  };
+
+  const loadDraft = () => {
+    if (currentPageKey && draftInputs[currentPageKey]) {
+      const draft = draftInputs[currentPageKey];
+      chatInput.value = draft.text || '';
+      
+      if (draft.attachment) {
+        // Temporarily bypass the process pending logic and just set it up directly
+        pendingAttachment = draft.attachment;
+        const attachmentContainer = document.getElementById('attachment-preview');
+        const attachmentContent = attachmentContainer.querySelector('.attachment-content');
+        attachmentContainer.classList.remove('hidden');
+        
+        if (pendingAttachment.type === 'image') {
+          attachmentContent.style.display = 'block';
+          attachmentContent.innerHTML = `<img src="${pendingAttachment.imageUrl}" alt="Attached Image" style="display: block; max-height: 80px; max-width: 100%; border-radius: 6px; object-fit: contain;">`;
+        } else {
+          attachmentContent.style.display = '-webkit-box';
+          attachmentContent.textContent = `"${pendingAttachment.text}"`;
+        }
+      } else {
+        pendingAttachment = null;
+        document.getElementById('attachment-preview').classList.add('hidden');
+        document.querySelector('.attachment-content').innerHTML = '';
+      }
+    } else {
+      chatInput.value = '';
+      pendingAttachment = null;
+      document.getElementById('attachment-preview').classList.add('hidden');
+      document.querySelector('.attachment-content').innerHTML = '';
+    }
+    
+    chatInput.style.height = 'auto';
+    chatInput.style.height = (chatInput.scrollHeight) + 'px';
+    sendBtn.disabled = chatInput.value.trim().length === 0 && !pendingAttachment;
+  };
+
+  // Handle SPA (Client-Side Rendering) navigation and tab title changes
   chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-    if (changeInfo.url && authToken) {
+    if (authToken) {
       const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (activeTab && activeTab.id === tabId) {
-        const newUrl = changeInfo.url.split('#')[0];
-        const newKey = `history_${newUrl}`;
-        if (newKey !== currentPageKey) {
-          currentPageKey = newKey;
-          await loadHistory();
+        if (changeInfo.url || changeInfo.title !== undefined) {
+          const oldKey = currentPageKey;
+          saveDraft();
+          await initPageKey();
+          if (oldKey !== currentPageKey) {
+            loadDraft();
+            await loadHistory();
+          }
         }
+      }
+    }
+  });
+
+  // Handle tab switching
+  chrome.tabs.onActivated.addListener(async (activeInfo) => {
+    if (authToken) {
+      const oldKey = currentPageKey;
+      saveDraft();
+      await initPageKey();
+      if (oldKey !== currentPageKey) {
+        loadDraft();
+        await loadHistory();
       }
     }
   });
@@ -185,13 +269,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (authToken && event.data.payload) {
         processPendingContextAsk(event.data.payload);
       }
-      return;
     }
+  });
 
-    if (!event.data || event.data.type !== 'TORCONS_CHECK_PENDING_CONTEXT_ASK') return;
-
-    if (authToken) {
-      requestPendingContextAsk();
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'TORCONS_CHECK_PENDING_CONTEXT_ASK') {
+      if (authToken) {
+        requestPendingContextAsk();
+      }
     }
   });
 
@@ -407,22 +492,36 @@ document.addEventListener('DOMContentLoaded', () => {
     if (indicator) indicator.remove();
   }
 
-  async function getCurrentPageContext() {
+  async function getCurrentPageContext(targetUrlKey) {
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab || tab.url.startsWith('chrome://')) return null;
+      let targetTab = null;
+      const allTabs = await chrome.tabs.query({ currentWindow: true });
+      
+      if (targetUrlKey) {
+        targetTab = allTabs.find(t => {
+          const url = t.url ? t.url.split('#')[0] : 'unknown_page';
+          return `history_${url}` === targetUrlKey;
+        });
+      }
+      
+      if (!targetTab) {
+        targetTab = allTabs.find(t => t.active);
+      }
+
+      if (!targetTab || !targetTab.url || targetTab.url.startsWith('chrome://') || targetTab.url.startsWith('chrome-extension://')) return null;
 
       const injectionResults = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
+        target: { tabId: targetTab.id },
         func: () => {
           const article = document.querySelector('article') || document.querySelector('main');
-          return (article || document.body).innerText;
+          let text = (article || document.body).innerText || '';
+          return text.replace(/\s+/g, ' ').trim();
         }
       });
       const pageContent = injectionResults[0]?.result;
       if (pageContent) {
-        const truncatedContent = pageContent.substring(0, 15000);
-        return `Title: ${tab.title}\nURL: ${tab.url}\n\nContent:\n${truncatedContent}`;
+        const truncatedContent = pageContent.substring(0, 8000);
+        return `Title: ${targetTab.title}\nURL: ${targetTab.url}\n\nContent:\n${truncatedContent}`;
       }
     } catch (err) {
       console.warn("Could not extract page context", err);
@@ -432,10 +531,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 6. Fetch AI Response
   async function fetchAIResponse() {
-    appendTypingIndicator();
+    const requestPageKey = currentPageKey;
+    const requestMessages = [...chatMessages];
+    
+    window.activeStreams[requestPageKey] = { content: '', bubble: null };
+    
+    if (currentPageKey === requestPageKey) appendTypingIndicator();
 
     try {
-      let apiMessages = chatMessages.map(msg => {
+      let apiMessages = requestMessages.map(msg => {
         if (msg.files && msg.files.length > 0) {
           const newContent = [{ type: 'text', text: msg.content }];
           msg.files.forEach(f => {
@@ -447,7 +551,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return { role: msg.role, content: msg.content };
       });
-      const pageContext = await getCurrentPageContext();
+      const pageContext = await getCurrentPageContext(requestPageKey);
       const storedModel = await getStoredModel();
       const selectedModel = modelSelect.disabled
         ? (storedModel || DEFAULT_MODEL)
@@ -493,14 +597,18 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error(`API Error: ${response.status}${errorMessage ? ` - ${errorMessage}` : ''}`);
       }
 
-      removeTypingIndicator();
+      if (currentPageKey === requestPageKey) removeTypingIndicator();
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
 
       let fullContent = '';
-      const msgDiv = appendMessage('ai', '');
-      const bubble = msgDiv.querySelector('.bubble');
+      
+      if (currentPageKey === requestPageKey) {
+        const msgDiv = appendMessage('ai', '');
+        window.activeStreams[requestPageKey].bubble = msgDiv.querySelector('.bubble');
+      }
+      
       let buffer = '';
       let done = false;
 
@@ -520,11 +628,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.choices && data.choices.length > 0) {
                   const delta = data.choices[0].delta;
                   if (delta && delta.content) {
-                    const isNearBottom = chatHistory.scrollHeight - chatHistory.scrollTop - chatHistory.clientHeight < 50;
                     fullContent += delta.content;
-                    bubble.innerHTML = renderMarkdown(fullContent);
-                    if (isNearBottom) {
-                      chatHistory.scrollTop = chatHistory.scrollHeight;
+                    window.activeStreams[requestPageKey].content = fullContent;
+                    
+                    if (currentPageKey === requestPageKey && window.activeStreams[requestPageKey].bubble) {
+                      const isNearBottom = chatHistory.scrollHeight - chatHistory.scrollTop - chatHistory.clientHeight < 50;
+                      window.activeStreams[requestPageKey].bubble.innerHTML = renderMarkdown(fullContent);
+                      if (isNearBottom) {
+                        chatHistory.scrollTop = chatHistory.scrollHeight;
+                      }
                     }
                   }
                 }
@@ -536,11 +648,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      chatMessages.push({ role: "assistant", content: fullContent });
-      saveHistory();
+      chrome.storage.local.get([requestPageKey], (result) => {
+        const history = result[requestPageKey] || [];
+        history.push({ role: "assistant", content: fullContent });
+        chrome.storage.local.set({ [requestPageKey]: history }, () => {
+          delete window.activeStreams[requestPageKey];
+          if (currentPageKey === requestPageKey) {
+            chatMessages = history;
+            if (document.getElementById('typing-indicator')) removeTypingIndicator();
+          }
+        });
+      });
 
     } catch (error) {
-      removeTypingIndicator();
+      if (currentPageKey === requestPageKey) removeTypingIndicator();
+      delete window.activeStreams[requestPageKey];
       console.error(error);
 
       if (error.message.startsWith('Authentication failed')) {
@@ -561,16 +683,25 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Remove the last user message from memory so it doesn't pollute the context
-      chatMessages.pop();
-      saveHistory();
+      chrome.storage.local.get([requestPageKey], (result) => {
+        const history = result[requestPageKey] || [];
+        history.pop();
+        chrome.storage.local.set({ [requestPageKey]: history }, () => {
+          if (currentPageKey === requestPageKey) chatMessages = history;
+        });
+      });
     }
   }
 
   // Context Menu Logic
   function requestPendingContextAsk() {
-    chrome.runtime.sendMessage({ type: 'GET_PENDING_CONTEXT_ASK' }, (response) => {
-      if (chrome.runtime.lastError || !response || !response.ask) return;
-      processPendingContextAsk(response.ask);
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const activeTab = tabs[0];
+      if (!activeTab) return;
+      chrome.runtime.sendMessage({ type: 'GET_PENDING_CONTEXT_ASK', tabId: activeTab.id }, (response) => {
+        if (chrome.runtime.lastError || !response || !response.ask) return;
+        processPendingContextAsk(response.ask);
+      });
     });
   }
 
