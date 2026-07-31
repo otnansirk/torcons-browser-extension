@@ -36,8 +36,12 @@
     "activeTab",
     "scripting",
     "contextMenus",
-    "tabs"
+    "tabs",
+    "sidePanel"
   ],
+  "side_panel": {
+    "default_path": "src/ui/sidebar/sidebar.html"
+  },
   "host_permissions": [
     "*://chat.torcons.ai/*",
     "<all_urls>"
