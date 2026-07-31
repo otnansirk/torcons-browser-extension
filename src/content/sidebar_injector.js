@@ -197,4 +197,17 @@
     draggedText = null;
   }
 
+  // 7. Handle messages from iframe
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'TORCONS_CLOSE_SIDEBAR') {
+      const existingContainer = document.getElementById(CONTAINER_ID);
+      if (existingContainer) {
+        existingContainer.remove();
+        document.documentElement.style.width = existingContainer.dataset.originalWidth || '';
+        document.documentElement.style.removeProperty('--torcons-sidebar-width');
+        window.dispatchEvent(new CustomEvent('torcons-sidebar-updated', { detail: { resizing: false } }));
+      }
+    }
+  });
+
 })();

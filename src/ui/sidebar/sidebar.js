@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatHistory = document.getElementById('chat-history');
   const modelSelect = document.getElementById('model-select');
   const settingsBtn = document.getElementById('settings-btn');
+  const closeSidebarBtn = document.getElementById('close-sidebar-btn');
   const removeAttachmentBtn = document.getElementById('remove-attachment-btn');
   const DEFAULT_MODEL = 'Torcons';
   const MODEL_STORAGE_KEY = 'selectedModel';
@@ -18,6 +19,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (settingsBtn) {
     settingsBtn.addEventListener('click', () => {
       chrome.runtime.openOptionsPage();
+    });
+  }
+
+  if (closeSidebarBtn) {
+    closeSidebarBtn.addEventListener('click', () => {
+      window.parent.postMessage({ type: 'TORCONS_CLOSE_SIDEBAR' }, '*');
     });
   }
 
@@ -113,10 +120,13 @@ document.addEventListener('DOMContentLoaded', () => {
     await initPageKey();
 
     chrome.storage.local.get(['token'], async (result) => {
+      const loadingOverlay = document.getElementById('loading-overlay');
       if (result.token) {
         authToken = result.token;
         loginView.classList.add('hidden');
         chatView.classList.remove('hidden');
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+        
         if (!modelsFetched) {
           fetchModels();
           modelsFetched = true;
@@ -130,6 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         loginView.classList.remove('hidden');
         chatView.classList.add('hidden');
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
       }
     });
   };
