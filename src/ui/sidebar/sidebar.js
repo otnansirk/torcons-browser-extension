@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const uploadBtn = document.getElementById('upload-btn');
   const fileUpload = document.getElementById('file-upload');
   const chatHistory = document.getElementById('chat-history');
-  const modelSelect = document.getElementById('model-select');
   const settingsBtn = document.getElementById('settings-btn');
   const removeAttachmentBtn = document.getElementById('remove-attachment-btn');
   const DEFAULT_MODEL = 'Torcons';
@@ -45,7 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   let authToken = null;
-  let modelsFetched = false;
   let chatMessages = [];
   let currentPageKey = null;
   let pendingAttachment = null;
@@ -147,11 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
         loginView.classList.add('hidden');
         chatView.classList.remove('hidden');
         if (loadingOverlay) loadingOverlay.classList.add('hidden');
-        
-        if (!modelsFetched) {
-          fetchModels();
-          modelsFetched = true;
-        }
 
         if (chatMessages.length === 0) {
           await loadHistory();
@@ -333,10 +326,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-
-  modelSelect.addEventListener('change', () => {
-    chrome.storage.local.set({ [MODEL_STORAGE_KEY]: modelSelect.value || DEFAULT_MODEL });
-  });
 
   // Drag and Drop Logic
 
@@ -553,9 +542,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const pageContext = await getCurrentPageContext(requestPageKey);
       const storedModel = await getStoredModel();
-      const selectedModel = modelSelect.disabled
-        ? (storedModel || DEFAULT_MODEL)
-        : (modelSelect.value || storedModel || DEFAULT_MODEL);
+      const selectedModel = storedModel || DEFAULT_MODEL;
 
       if (pageContext && apiMessages.length > 0 && apiMessages[0].role === 'system') {
         apiMessages[0] = {
@@ -794,45 +781,6 @@ document.addEventListener('DOMContentLoaded', () => {
     chatHistory.appendChild(btnDiv);
 
     document.getElementById('inline-summarize-btn').addEventListener('click', triggerSummarize);
-  }
-
-  // 8. Fetch Models
-  async function fetchModels() {
-    try {
-      const storedModel = await getStoredModel();
-      const response = await fetch('https://chat.torcons.ai/openai/models', {
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
-      });
-      if (!response.ok) throw new Error("Failed to fetch models");
-      const data = await response.json();
-
-      if (data.data && data.data.length > 0) {
-        modelSelect.innerHTML = '';
-        const modelIds = data.data.map(model => model.id);
-        data.data.forEach(model => {
-          const option = document.createElement('option');
-          option.value = model.id;
-          option.textContent = model.id;
-          modelSelect.appendChild(option);
-        });
-        if (storedModel && modelIds.includes(storedModel)) {
-          modelSelect.value = storedModel;
-        } else if (modelIds.includes(DEFAULT_MODEL)) {
-          modelSelect.value = DEFAULT_MODEL;
-        }
-        chrome.storage.local.set({ [MODEL_STORAGE_KEY]: modelSelect.value || DEFAULT_MODEL });
-        modelSelect.disabled = false;
-      } else {
-        modelSelect.innerHTML = `<option value="${DEFAULT_MODEL}">${DEFAULT_MODEL}</option>`;
-        chrome.storage.local.set({ [MODEL_STORAGE_KEY]: DEFAULT_MODEL });
-      }
-    } catch (error) {
-      console.error(error);
-      modelSelect.innerHTML = `<option value="${DEFAULT_MODEL}">${DEFAULT_MODEL}</option>`;
-      chrome.storage.local.set({ [MODEL_STORAGE_KEY]: DEFAULT_MODEL });
-    }
   }
 
   function renderMarkdown(str) {
